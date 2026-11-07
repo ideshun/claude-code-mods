@@ -1,0 +1,10 @@
+node_modules/
+plugins/**/hooks/*.js
+plugins/**/*.test.js
+.DS_Store
+*.log
+*.swp
+*~
+.claude-plugin/types/
+.mcpb-cache/
+plugins/**/.claude-plugin/types/

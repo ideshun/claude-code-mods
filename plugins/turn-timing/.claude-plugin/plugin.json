@@ -1,0 +1,61 @@
+{
+  "name": "turn-timing",
+  "version": "0.1.1",
+  "description": "Append configurable turn timing to Claude Desktop's collapsed activity summary",
+  "license": "MIT",
+  "author": {
+    "name": "ideshun"
+  },
+  "keywords": [
+    "timing",
+    "duration",
+    "desktop",
+    "activity-summary"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Auto / 自动, 中文, English, 日本語, Custom / 自定义. Auto follows explicit LANG/LC_ALL/LC_MESSAGES.",
+      "options": [
+        "Auto",
+        "中文",
+        "English",
+        "日本語",
+        "Custom"
+      ],
+      "default": "English"
+    },
+    "prefix": {
+      "type": "string",
+      "title": "Prefix",
+      "description": "Text before the timing line. Leave empty for none. Example: ⏱",
+      "default": ""
+    },
+    "totalLabel": {
+      "type": "string",
+      "title": "Total label",
+      "description": "Custom label for total wall-clock time. Used when Language is custom.",
+      "default": ""
+    },
+    "thinkingLabel": {
+      "type": "string",
+      "title": "Thinking label",
+      "description": "Custom label for streamed thinking time. Used when Language is custom.",
+      "default": ""
+    },
+    "respondingLabel": {
+      "type": "string",
+      "title": "Responding label",
+      "description": "Custom label for generated response time. Used when Language is custom.",
+      "default": ""
+    },
+    "toolsLabel": {
+      "type": "string",
+      "title": "Tools label",
+      "description": "Custom label for tool-call time. Used when Language is custom.",
+      "default": ""
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "claude-code-mods",
+  "description": "Categorized Claude Code plugins, mods, skills and agents for Claude Desktop workflows.",
+  "owner": {
+    "name": "ideshun",
+    "url": "https://github.com/ideshun"
+  },
+  "plugins": [
+    {
+      "name": "turn-timing",
+      "source": "./plugins/turn-timing",
+      "description": "Append compact, configurable per-reply timing to Claude Desktop's collapsed activity summary.",
+      "category": "ui",
+      "keywords": ["timing", "duration", "desktop", "activity-summary", "i18n"]
+    }
+  ]
+}
