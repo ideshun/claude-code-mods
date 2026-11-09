@@ -19,7 +19,7 @@ docs/          共用文档与截图（规划）
 
 | 插件 | 分类 | 功能 | 状态 |
 | --- | --- | --- | --- |
-| [turn-timing](plugins/turn-timing/README.zh-CN.md) | UI / 计时 | 在每次完成回复的末尾显示总耗时、思考、回答与工具耗时 | v0.1.3 |
+| [turn-timing](plugins/turn-timing/README.zh-CN.md) | UI / 计时 | 在每次完成回复的末尾显示总耗时、思考、回答与工具耗时 | v0.1.2 |
 
 插件文档提供 [English](plugins/turn-timing/README.en.md)、[中文](plugins/turn-timing/README.zh-CN.md) 和 [日本語](plugins/turn-timing/README.ja-JP.md) 版本。
 
