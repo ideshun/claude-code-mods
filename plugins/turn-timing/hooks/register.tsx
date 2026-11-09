@@ -162,7 +162,9 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {engine}
-        <Text dimColor size="caption" wrap="truncate-end">{row.text}</Text>
+        <Box marginTop={1}>
+          <Text dimColor size="caption" wrap="truncate-end">{row.text}</Text>
+        </Box>
       </Box>
     )
   })
