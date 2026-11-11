@@ -47,8 +47,10 @@ Claude Desktop の Code タブでは `/plugin install` を使用できません�
 
 インストール後に返信が完了すると、transcript 末尾に次のような短い文字列が追加されます。
 
+![時間と token 指標](plugins/turn-timing/assets/effect.png)
+
 ```text
-Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s & Token 13k · 入力 12k · キャッシュ 8k (67%) · 出力 1k
+作業 7m23s · 思考 2m18s · 回答 1m57s · ツール 3m8s & Token 9.5M · 入力 9.5M · キャッシュ 9.2M (98%) · 出力 40k
 ```
 
 token 指標は既定で有効です（`showTokens`）。Plugins 設定の Language には `Auto`、`中文`、`English`、`日本語`、`Custom` が表示されます。既定値は `English` です。`Auto` は `LANG` / `LC_ALL` / `LC_MESSAGES` が明示的に中国語または日本語の場合のみ切り替え、`Custom` は四つのカスタムラベルを使用します。

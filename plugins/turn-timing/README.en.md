@@ -4,11 +4,13 @@
 
 ## Effect
 
+![Timing and token metrics](assets/effect.png)
+
 ```text
-Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s & Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
+Worked 7m23s · Thought 2m18s · Responded 1m57s · Tools 3m8s & Tokens 9.5M · Input 9.5M · Cache 9.2M (98%) · Output 40k
 ```
 
-Optional token metrics follow on the same line when the engine reports usage. The suffix uses caption-sized dim text and truncates on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.
+Optional token metrics follow on the same line when the engine reports usage. The plugin adds only this line; it does not add the reply body above it. It uses caption-sized dim text and truncates on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.
 
 ## Installation
 
