@@ -31,15 +31,15 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 
 | 选项 | 可选值 | 默认值 | 含义 |
 | --- | --- | --- | --- |
-| `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | 以语言本名显示；`Auto` 跟随明确的中日文环境变量 |
-| `showTokens` | 布尔 | `true` | 在耗时行下显示总 token、输入、缓存命中和输出 |
+| `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | 计时文字语言；`Auto` 跟随系统语言，`Custom` 使用四个自定义标签 |
+| `showTokens` | 布尔 | `true` | 在耗时后显示总 token、输入、输出和缓存命中率 |
 | `prefix` | 字符串 | 空 | 耗时前可选的字符或 emoji |
 | `totalLabel` | 字符串 | 空 | 总耗时自定义标签 |
 | `thinkingLabel` | 字符串 | 空 | 思考耗时自定义标签 |
 | `respondingLabel` | 字符串 | 空 | 回答耗时自定义标签 |
 | `toolsLabel` | 字符串 | 空 | 工具耗时自定义标签 |
 
-`Custom` 需要四个自定义标签均非空才生效。旧配置值 `auto`、`zh-CN`、`en`、`ja-JP`、`custom` 仍兼容。
+只有 `Custom` 会使用四个自定义标签，且四项都必须非空。旧配置值 `auto`、`zh-CN`、`en`、`ja-JP`、`custom` 仍兼容。
 
 示例 `~/.claude/settings.json`：
 
@@ -64,11 +64,11 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | 总耗时 | 引擎 `turn.complete.durationMs` 墙钟时间 |
 | 思考 | 流式 `thinking` 片段时间 |
 | 回答 | 流式文本与工具调用片段时间 |
-| 工具 | 主循环工具调用执行时间 |
+| 工具 | 主循环工具调用执行时间；并发调用只计一次墙钟时间 |
 | Token 总量 | `turn.complete.usage`：未缓存输入 + 缓存写入 + 缓存读取 + 输出 |
 | 缓存命中率 | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-每次完成的回复只在最后一条 assistant 消息末尾显示一条耗时行，旧回复保持各自数值。token 是引擎报告的整轮汇总；没有 usage 时不显示 token 指标；子 Agent 回合不统计。三个估算值会归一化，不会超过权威总耗时。
+每次完成的回复只在最后一条 assistant 消息末尾显示一条耗时行，旧回复保持各自数值。耗时绑定到该回复最后一条已存储的 assistant 消息，重新绘制旧消息不会移动当前耗时。token 是引擎报告的整轮汇总；没有 usage 时不显示 token 指标；子 Agent 回合不统计。三个估算值会归一化，不会超过权威总耗时。
 
 ## 验证
 
@@ -77,7 +77,7 @@ claude plugin validate plugins/turn-timing
 claude plugin test plugins/turn-timing
 ```
 
-测试覆盖每次回复一条、数值独立、语言本名、`Auto`、自定义标签、工作中隐藏、子 Agent 与中断。
+测试覆盖每次回复一条、数值独立、历史重绘、语言优先级、并发工具、语言本名、`Auto`、自定义标签、工作中隐藏、子 Agent 与中断。
 
 ## 限制
 

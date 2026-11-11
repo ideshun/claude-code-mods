@@ -31,15 +31,15 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 
 | 項目 | 値 | 既定値 | 内容 |
 | --- | --- | --- | --- |
-| `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | 言語名で表示。`Auto` は明示的な中国語/日本語ロケール変数に従う |
-| `showTokens` | 真偽値 | `true` | 時間表示の下に合計・入力・キャッシュ・出力 token を表示 |
+| `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | タイミング表示の言語。`Auto` はシステム言語に従い、`Custom` は四つのカスタムラベルを使用 |
+| `showTokens` | 真偽値 | `true` | タイミングの後に合計・入力・出力 token とキャッシュ命中率を表示 |
 | `prefix` | 文字列 | 空 | 時間表示の前の文字/絵文字 |
 | `totalLabel` | 文字列 | 空 | 合計時間のカスタムラベル |
 | `thinkingLabel` | 文字列 | 空 | 思考時間のカスタムラベル |
 | `respondingLabel` | 文字列 | 空 | 回答時間のカスタムラベル |
 | `toolsLabel` | 文字列 | 空 | ツール時間のカスタムラベル |
 
-`Custom` は四つのカスタムラベルがすべて非空の場合に有効です。旧値 `auto`、`zh-CN`、`en`、`ja-JP`、`custom` も互換性のため受け付けます。
+四つのカスタムラベルは `Custom` のときだけ使用され、すべて非空である必要があります。旧値 `auto`、`zh-CN`、`en`、`ja-JP`、`custom` も互換性のため受け付けます。
 
 ## 計測内容
 
@@ -48,11 +48,11 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | 合計 | エンジンの `turn.complete.durationMs` |
 | 思考 | ストリーミングされた `thinking` chunk の時間 |
 | 回答 | テキストおよびツール呼び出し chunk の時間 |
-| ツール | メインループのツール実行時間 |
+| ツール | メインループのツール実行時間。並行呼び出しは実時間で一度だけ計上 |
 | Token 合計 | `turn.complete.usage`: 未キャッシュ入力 + キャッシュ書込 + キャッシュ読込 + 出力 |
 | キャッシュ命中率 | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-完了した返信ごとに最後の assistant メッセージ末尾へ 1 行を置き、以前の返信は書き換わりません。token はエンジンが報告するターン合計で、usage がない場合は token 指標を表示しません。サブエージェントは対象外です。三つの推定値は権威ある合計値を超えないよう正規化されます。
+完了した返信ごとに最後の assistant メッセージ末尾へ 1 行を置き、以前の返信は書き換わりません。時間表示は返信の最後に保存された assistant メッセージに紐づくため、過去のメッセージを再描画しても現在の表示は移動しません。token はエンジンが報告するターン合計で、usage がない場合は token 指標を表示しません。サブエージェントは対象外です。三つの推定値は権威ある合計値を超えないよう正規化されます。
 
 ## 検証
 
@@ -61,7 +61,7 @@ claude plugin validate plugins/turn-timing
 claude plugin test plugins/turn-timing
 ```
 
-返信ごとの 1 行表示、値の独立性、言語名、`Auto`、カスタムラベル、実行中非表示、サブエージェント、中断をテストしています。
+返信ごとの 1 行表示、値の独立性、履歴再描画、言語の優先順位、並行ツール、言語名、`Auto`、カスタムラベル、実行中非表示、サブエージェント、中断をテストしています。
 
 ## 制限
 

@@ -33,15 +33,15 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 
 | Option | Values | Default | Meaning |
 | --- | --- | --- | --- |
-| `language` | `Auto`, `中文`, `English`, `日本語`, `Custom` | `English` | Native-name language picker; `Auto` follows explicit Chinese/Japanese locale variables |
-| `showTokens` | boolean | `true` | Show total, input, cache-hit and output tokens under the timing line |
+| `language` | `Auto`, `中文`, `English`, `日本語`, `Custom` | `English` | Language for the timing labels; `Auto` follows your system language, `Custom` uses the four label fields |
+| `showTokens` | boolean | `true` | Show total, input and output tokens plus the cache-hit rate after the timing |
 | `prefix` | string | empty | Optional text/emoji before the timing line |
 | `totalLabel` | string | empty | Custom total-time label |
 | `thinkingLabel` | string | empty | Custom thinking-time label |
 | `respondingLabel` | string | empty | Custom response-time label |
 | `toolsLabel` | string | empty | Custom tool-time label |
 
-All four custom labels must be non-empty for `Custom` to take effect. Legacy values `auto`, `zh-CN`, `en`, `ja-JP`, `custom` remain accepted for existing settings.
+Only `Custom` uses the four label fields, and all four must be non-empty. Legacy values `auto`, `zh-CN`, `en`, `ja-JP`, `custom` remain accepted for existing settings.
 
 Example `~/.claude/settings.json`:
 
@@ -70,11 +70,11 @@ Example `~/.claude/settings.json`:
 | Total | Engine-provided `turn.complete.durationMs` wall-clock duration |
 | Thinking | Streamed `thinking` chunk time |
 | Responding | Streamed text and tool-call chunk time |
-| Tools | Main-loop tool-call execution time |
+| Tools | Main-loop tool-call execution time; concurrent calls count wall-clock time once |
 | Tokens | `turn.complete.usage` total = uncached input + cache write + cache read + output |
 | Cache hit | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-Each completed reply places one timing line at the end of the reply body with its own value; earlier rows keep their own values. Token usage is the turn total reported by the engine; when no usage exists, token metrics are omitted. Subagent turns are ignored. The three estimates are normalized so they never exceed the authoritative total.
+Each completed reply places one timing line at the end of the reply body with its own value; earlier rows keep their own values. The row is bound to the reply's final stored assistant message, so repainting an older message does not move the current timing. Token usage is the turn total reported by the engine; when no usage exists, token metrics are omitted. Subagent turns are ignored. The three estimates are normalized so they never exceed the authoritative total.
 
 ## Verification
 
@@ -83,7 +83,7 @@ claude plugin validate plugins/turn-timing
 claude plugin test plugins/turn-timing
 ```
 
-Tests cover one row per reply, independent values, native language names, `Auto`, custom labels, hidden in-progress state, subagents and interruptions.
+Tests cover one row per reply, independent values, history repaints, language precedence, overlapping tools, native language names, `Auto`, custom labels, hidden in-progress state, subagents and interruptions.
 
 ## Limitations
 
