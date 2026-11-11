@@ -193,7 +193,7 @@ export const register: Register = (on, options) => {
         {engine}
         <Box marginTop={1}>
           <Text dimColor size="caption" wrap="truncate-end">
-            {row.tokens ? `${row.text} · ${row.tokens}` : row.text}
+            {row.tokens ? `${row.text} & ${row.tokens}` : row.text}
           </Text>
         </Box>
       </Box>

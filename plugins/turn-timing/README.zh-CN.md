@@ -5,7 +5,7 @@
 ## 效果
 
 ```text
-Ran 7 commands, read 3 files · 工作 1m30s · 思考 12s · 回答 8s · 工具 1m10s · Token 13k · 输入 12k · 缓存 8k (67%) · 输出 1k
+Ran 7 commands, read 3 files · 工作 1m30s · 思考 12s · 回答 8s · 工具 1m10s & Token 13k · 输入 12k · 缓存 8k (67%) · 输出 1k
 ```
 
 同一行末尾会附带引擎返回本轮 usage 时的 token 统计。后缀使用最小号、弱化颜色并在窄布局中截断；仅用于显示，不进入 transcript 文件，也不进入模型上下文。

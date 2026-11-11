@@ -5,7 +5,7 @@
 ## 表示例
 
 ```text
-Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s · Token 13k · 入力 12k · キャッシュ 8k (67%) · 出力 1k
+Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s & Token 13k · 入力 12k · キャッシュ 8k (67%) · 出力 1k
 ```
 
 同じ行の末尾に、エンジンが usage を返した場合の token 統計を追加します。追加部分は最小サイズの淡色テキストで、狭い幅では切り詰めます。表示専用であり、transcript ファイルやモデルコンテキストには入りません。

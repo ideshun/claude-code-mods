@@ -117,7 +117,7 @@ test('token totals and cache hit rate use the whole input', async ($, on) => {
   }))
 
   const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
-  expect(await tokenText(ui)).toContain('Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k')
+  expect(await tokenText(ui)).toContain('Tools 0s & Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k')
   await ui.unmount()
 })
 

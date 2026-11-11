@@ -48,14 +48,14 @@ Claude Desktop's Code tab does not offer `/plugin install`; configure installed 
 After installing, finish any reply. Its end of the reply body gets a compact suffix like:
 
 ```text
-Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s · Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
+Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s & Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
 ```
 
 Token metrics are enabled by default (`showTokens`). The Plugins settings expose `Auto`, `中文`, `English`, `日本語` and `Custom`. The default is `English`; `Auto` follows an explicit Chinese or Japanese `LANG` / `LC_ALL` / `LC_MESSAGES`, and `Custom` uses the four label fields.
 
 ## Development
 
-Use the Claude Code version that matches the target host. This repository currently targets the Claude Desktop Code tab's bundled Claude Code 2.1.317 function-hook API.
+Use the Claude Code version that matches the target host. This repository currently targets the Claude Desktop Code tab's bundled Claude Code 2.1.321 function-hook API.
 
 ```bash
 claude plugin validate plugins/turn-timing

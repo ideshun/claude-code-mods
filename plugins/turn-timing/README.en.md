@@ -5,14 +5,14 @@
 ## Effect
 
 ```text
-Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s
+Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s & Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
 ```
 
-The suffix uses caption-sized dim text and truncates on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.
+Optional token metrics follow on the same line when the engine reports usage. The suffix uses caption-sized dim text and truncates on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.
 
 ## Installation
 
-Requires Claude Code 2.1.275+ for one-step marketplace install. The hooks API targets Claude Desktop Code tab's bundled Claude Code 2.1.317.
+Requires Claude Code 2.1.275+ for one-step marketplace install. The hooks API targets Claude Desktop Code tab's bundled Claude Code 2.1.321.
 
 ```bash
 /plugin marketplace add ideshun/claude-code-mods
@@ -32,6 +32,7 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | Option | Values | Default | Meaning |
 | --- | --- | --- | --- |
 | `language` | `Auto`, `中文`, `English`, `日本語`, `Custom` | `English` | Native-name language picker; `Auto` follows explicit Chinese/Japanese locale variables |
+| `showTokens` | boolean | `true` | Show total, input, cache-hit and output tokens under the timing line |
 | `prefix` | string | empty | Optional text/emoji before the timing line |
 | `totalLabel` | string | empty | Custom total-time label |
 | `thinkingLabel` | string | empty | Custom thinking-time label |
@@ -48,6 +49,7 @@ Example `~/.claude/settings.json`:
     "turn-timing@claude-code-mods": {
       "options": {
         "language": "English",
+        "showTokens": true,
         "prefix": "⏱",
         "totalLabel": "Total",
         "thinkingLabel": "Think",

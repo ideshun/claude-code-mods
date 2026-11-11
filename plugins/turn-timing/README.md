@@ -7,7 +7,7 @@
 ## Effect
 
 ```text
-Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s · Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
+Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s & Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
 ```
 
 Optional token metrics follow on the same line when the engine reports usage. The suffix uses caption-sized dim text and truncates on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.

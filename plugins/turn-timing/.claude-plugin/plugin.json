@@ -17,7 +17,7 @@
     "language": {
       "type": "string",
       "title": "Language",
-      "description": "Auto / 自动, 中文, English, 日本語, Custom / 自定义. Auto follows explicit LANG/LC_ALL/LC_MESSAGES.",
+      "description": "Language for the timing labels. Auto follows your system language; Custom uses the label fields below.",
       "options": [
         "Auto",
         "中文",
@@ -30,7 +30,7 @@
     "showTokens": {
       "type": "boolean",
       "title": "Show tokens",
-      "description": "Show total, input, cache-hit and output tokens under the timing line.",
+      "description": "Show total, input and output tokens plus the cache-hit rate after the timing.",
       "default": true
     },
     "prefix": {
