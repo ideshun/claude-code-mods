@@ -37,6 +37,10 @@ const timing = async (ui: any) => (await ui.find({ type: 'Text', text: /Worked|�
 const tokenText = async (ui: any) => (await ui.find({ type: 'Text', text: /Tokens|Token/ }))?.text
 
 const showAnswer = async ($: any, id = 'msg-1') => {
+  await $.session.append({
+    uuid: id, door: 'response', origin: { kind: 'model', model: 'test' },
+    message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text: 'engine answer' }] },
+  })
   const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
   await ui.unmount()
   return id
@@ -206,5 +210,117 @@ test('subagent turns are ignored', async ($, on) => {
 
   const ui = await $.ui.mount({ ...assistant('turn-turn-1'), surface: 'desktop' })
   expect(await timing(ui)).toBeUndefined()
+  await ui.unmount()
+})
+
+test('repainting history does not reassign current reply timing', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'old-message')
+  await $.turn.complete(complete(90000))
+  await $.turn.start({ ...turn, turnId: 'turn-2' })
+  await showAnswer($, 'new-message')
+  const history = await $.ui.mount({ ...assistant('old-message'), surface: 'desktop' })
+  await history.unmount()
+  await $.turn.complete(complete(20000, 'turn-2'))
+  const old = await $.ui.mount({ ...assistant('old-message'), surface: 'desktop' })
+  expect(await timing(old)).toContain('Worked 1m30s')
+  await old.unmount()
+  const fresh = await $.ui.mount({ ...assistant('new-message'), surface: 'desktop' })
+  expect(await timing(fresh)).toContain('Worked 20s')
+  await fresh.unmount()
+})
+
+test('built-in language ignores saved custom labels', { options: {
+  language: 'English', totalLabel: 'Total', thinkingLabel: 'Think', respondingLabel: 'Reply', toolsLabel: 'Tools',
+} }, async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($)
+  await $.turn.complete(complete(30000))
+  const ui = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 30s')
+  await ui.unmount()
+})
+
+test('overlapping tool calls count wall-clock time once', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { LANG: 'en_US.UTF-8' })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e as never)
+    return <Text>engine answer</Text>
+  })
+  on('tool.call', async () => {
+    await clock.sleep(10000)
+    return { result: {} }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($)
+  const a = $.tool.call({ tool: 'Bash', command: 'a' })
+  const b = $.tool.call({ tool: 'Bash', command: 'b' })
+  await Promise.all([a, b, clock.set(10000)])
+  await $.turn.complete(complete(20000))
+  const ui = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Responded 10s · Tools 10s')
+  await ui.unmount()
+})
+
+test('final main message gets timing without rendering before completion', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  for (const [uuid, text, agentId] of [
+    ['intermediate', 'working', undefined],
+    ['final', 'done', undefined],
+    ['child', 'child answer', 'agent-1'],
+    ['blank', '  ', undefined],
+  ] as const) {
+    await $.session.append({
+      uuid, agentId, door: 'response', origin: { kind: 'model', model: 'test' },
+      message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text }] },
+    })
+  }
+  await $.turn.complete(complete(30000))
+  for (const id of ['intermediate', 'final', 'child', 'blank']) {
+    const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
+    if (id === 'final') expect(await timing(ui)).toContain('Worked 30s')
+    else expect(await timing(ui)).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('partially overlapping and sequential tools count only occupied intervals', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { LANG: 'en_US.UTF-8' })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e as never)
+    return <Text>engine answer</Text>
+  })
+  on('tool.call', async () => {
+    await clock.sleep(10000)
+    return { result: {} }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($)
+  const a = $.tool.call({ tool: 'Bash', command: 'a' })
+  await clock.set(5000)
+  const b = $.tool.call({ tool: 'Bash', command: 'b' })
+  await Promise.all([a, b, clock.set(15000)])
+  await clock.set(20000)
+  const c = $.tool.call({ tool: 'Bash', command: 'c' })
+  await Promise.all([c, clock.set(30000)])
+  await $.turn.complete(complete(40000))
+  const ui = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Responded 15s · Tools 25s')
   await ui.unmount()
 })

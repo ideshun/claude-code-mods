@@ -11,6 +11,8 @@ type MainLoop = {
   thinkingMs: number
   respondingMs: number
   toolsMs: number
+  activeTools: number
+  toolsStartedAt: number
   lastMessageId?: string
 }
 
@@ -43,10 +45,11 @@ const languageOf = (options: Options, locale: string) => {
 }
 
 const wordsOf = (options: Options, locale: string) => {
-  const builtIn = WORDS[languageOf(options, locale) as keyof typeof WORDS]
+  const language = languageOf(options, locale)
+  const builtIn = WORDS[language as keyof typeof WORDS]
   const custom = [options.totalLabel, options.thinkingLabel, options.respondingLabel, options.toolsLabel]
     .map(value => String(value ?? '').trim())
-  return custom.every(value => value.length > 0) ? custom : (builtIn ?? WORDS.English)
+  return language === 'Custom' && custom.every(value => value.length > 0) ? custom : (builtIn ?? WORDS.English)
 }
 
 const label = (timing: Timing, options: Options, locale: string) => {
@@ -96,7 +99,9 @@ const timingOf = (loop: MainLoop, e: TurnCompleteInput, options: Options, locale
   return timing
 }
 
-const empty = (turnId: string): MainLoop => ({ turnId, thinkingMs: 0, respondingMs: 0, toolsMs: 0 })
+const empty = (turnId: string): MainLoop => ({
+  turnId, thinkingMs: 0, respondingMs: 0, toolsMs: 0, activeTools: 0, toolsStartedAt: 0,
+})
 
 async function finish(
   $: EngineInterface,
@@ -120,6 +125,18 @@ export const register: Register = (on, options) => {
   on('turn.start', (_, e, next) => {
     if (e.agentId === undefined) current = empty(e.turnId)
     return next(e)
+  })
+
+  on('session.append', { door: 'response' }, async (_, e, next) => {
+    const loop = e.agentId === undefined ? current : null
+    const result = await next(e)
+    const content = result.message?.type === 'assistant' && Array.isArray(result.message.content)
+      ? result.message.content
+      : []
+    if (loop && content.some(block => block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')) {
+      loop.lastMessageId = result.uuid
+    }
+    return result
   })
 
   // Chunks are model response time; tool time is measured by the tool.call hook.
@@ -159,10 +176,12 @@ export const register: Register = (on, options) => {
     if (!loop) return next(e)
 
     const startedAt = await $.clock.now()
+    if (loop.activeTools++ === 0) loop.toolsStartedAt = startedAt
     try {
       return await next(e)
     } finally {
-      loop.toolsMs += Math.max(0, (await $.clock.now()) - startedAt)
+      const endedAt = await $.clock.now()
+      if (--loop.activeTools === 0) loop.toolsMs += Math.max(0, endedAt - loop.toolsStartedAt)
     }
   })
   .catch((_, e, next) => next(e))
@@ -181,8 +200,6 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (current && e.props.text.trim() !== '') current.lastMessageId = e.requestId
-
     const row = (await read($, byId)).get(e.requestId)
     if (!row) return next(e)
 
