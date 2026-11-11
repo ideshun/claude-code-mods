@@ -27,6 +27,12 @@
       ],
       "default": "English"
     },
+    "showTokens": {
+      "type": "boolean",
+      "title": "Show tokens",
+      "description": "Show total, input, cache-hit and output tokens under the timing line.",
+      "default": true
+    },
     "prefix": {
       "type": "string",
       "title": "Prefix",

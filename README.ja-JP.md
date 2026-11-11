@@ -48,10 +48,10 @@ Claude Desktop の Code タブでは `/plugin install` を使用できません�
 インストール後に返信が完了すると、transcript 末尾に次のような短い文字列が追加されます。
 
 ```text
-Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s
+Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s · Token 13k · 入力 12k · キャッシュ 8k (67%) · 出力 1k
 ```
 
-Plugins 設定の Language には `Auto`、`中文`、`English`、`日本語`、`Custom` が表示されます。既定値は `English` です。`Auto` は `LANG` / `LC_ALL` / `LC_MESSAGES` が明示的に中国語または日本語の場合のみ切り替え、`Custom` は四つのカスタムラベルを使用します。
+token 指標は既定で有効です（`showTokens`）。Plugins 設定の Language には `Auto`、`中文`、`English`、`日本語`、`Custom` が表示されます。既定値は `English` です。`Auto` は `LANG` / `LC_ALL` / `LC_MESSAGES` が明示的に中国語または日本語の場合のみ切り替え、`Custom` は四つのカスタムラベルを使用します。
 
 ## 開発
 

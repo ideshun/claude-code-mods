@@ -3,13 +3,14 @@ import type { TestBody } from 'claude-code/testing'
 
 const turn = { text: 'hello', turnId: 'turn-1' } as const
 
-const complete = (durationMs: number, turnId = 'turn-1') => ({
+const complete = (durationMs: number, turnId = 'turn-1', usage?: any) => ({
   ...turn,
   turnId,
   answer: '',
   durationMs,
   isAborted: false,
   reason: 'answer' as const,
+  ...(usage ? { usage } : {}),
 })
 
 const assistant = (requestId: string) => ({
@@ -33,6 +34,7 @@ const bottom = (on: Parameters<TestBody>[1], locale = 'en_US.UTF-8') => {
 }
 
 const timing = async (ui: any) => (await ui.find({ type: 'Text', text: /Worked|工作|作業|Total/ }))?.text
+const tokenText = async (ui: any) => (await ui.find({ type: 'Text', text: /Tokens|Token/ }))?.text
 
 const showAnswer = async ($: any, id = 'msg-1') => {
   const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
@@ -101,6 +103,37 @@ test('English is the default language', async ($, on) => {
 
   const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
   expect(await timing(ui)).toContain('Worked 30s')
+  await ui.unmount()
+})
+
+test('token totals and cache hit rate use the whole input', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  const id = await showAnswer($, 'msg-tokens')
+  await $.turn.complete(complete(30000, 'turn-1', {
+    model: 'test', input_tokens: 2000, output_tokens: 1000,
+    cache_read_input_tokens: 8000, cache_creation_input_tokens: 2000,
+  }))
+
+  const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
+  expect(await tokenText(ui)).toContain('Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k')
+  await ui.unmount()
+})
+
+test('showTokens false hides the token line', { options: { showTokens: false } }, async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  const id = await showAnswer($, 'msg-no-tokens')
+  await $.turn.complete(complete(30000, 'turn-1', {
+    model: 'test', input_tokens: 2000, output_tokens: 1000,
+    cache_read_input_tokens: 8000, cache_creation_input_tokens: 2000,
+  }))
+
+  const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 30s')
+  expect(await tokenText(ui)).toBeUndefined()
   await ui.unmount()
 })
 

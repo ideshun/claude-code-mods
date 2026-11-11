@@ -48,10 +48,10 @@ Claude Desktop 的 Code 标签页不提供 `/plugin install`；请在终端 Clau
 安装后完成一次回复，回复正文末尾会追加类似内容：
 
 ```text
-Ran 7 commands, read 3 files · 工作 1m30s · 思考 12s · 回答 8s · 工具 1m10s
+Ran 7 commands, read 3 files · 工作 1m30s · 思考 12s · 回答 8s · 工具 1m10s · Token 13k · 输入 12k · 缓存 8k (67%) · 输出 1k
 ```
 
-Plugins 设置中的 Language 选项为 `Auto`、`中文`、`English`、`日本語`、`Custom`。默认是 `English`；`Auto` 仅在 `LANG` / `LC_ALL` / `LC_MESSAGES` 明确为中文或日文时切换，`Custom` 使用四个自定义标签。
+token 指标默认开启（`showTokens`）。Plugins 设置中的 Language 选项为 `Auto`、`中文`、`English`、`日本語`、`Custom`。默认是 `English`；`Auto` 仅在 `LANG` / `LC_ALL` / `LC_MESSAGES` 明确为中文或日文时切换，`Custom` 使用四个自定义标签。
 
 ## 开发
 

@@ -3,7 +3,7 @@ import type { EngineInterface, Register, TurnCompleteInput, TurnCompleteResult }
 
 import type { Timing, TimingRow } from '../types'
 
-const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-8' })
+const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-9' })
 const byId = derive([rows], list => new Map(list.map(row => [row.id, row])))
 
 type MainLoop = {
@@ -29,12 +29,21 @@ const WORDS = {
   '日本語': ['作業', '思考', '回答', 'ツール'],
 } as const
 
-const wordsOf = (options: Options, locale: string) => {
+const TOKEN_WORDS = {
+  '中文': ['Token', '输入', '缓存', '输出'],
+  English: ['Tokens', 'Input', 'Cache', 'Output'],
+  '日本語': ['Token', '入力', 'キャッシュ', '出力'],
+} as const
+
+const languageOf = (options: Options, locale: string) => {
   const configured = { auto: 'Auto', 'zh-CN': '中文', en: 'English', 'ja-JP': '日本語', custom: 'Custom' }[String(options.language ?? 'English')] ?? String(options.language ?? 'English')
-  const language = configured === 'Auto'
+  return configured === 'Auto'
     ? (/^zh/i.test(locale) ? '中文' : /^ja/i.test(locale) ? '日本語' : 'English')
     : configured
-  const builtIn = language in WORDS ? WORDS[language as keyof typeof WORDS] : undefined
+}
+
+const wordsOf = (options: Options, locale: string) => {
+  const builtIn = WORDS[languageOf(options, locale) as keyof typeof WORDS]
   const custom = [options.totalLabel, options.thinkingLabel, options.respondingLabel, options.toolsLabel]
     .map(value => String(value ?? '').trim())
   return custom.every(value => value.length > 0) ? custom : (builtIn ?? WORDS.English)
@@ -48,6 +57,26 @@ const label = (timing: Timing, options: Options, locale: string) => {
     .join(' · ')
   const prefix = String(options.prefix ?? '').trim()
   return prefix ? `${prefix} ${body}` : body
+}
+
+const compactTokens = (value: number) => {
+  const count = Math.max(0, Math.round(value))
+  if (count < 1000) return String(count)
+  if (count < 1_000_000) return `${(count / 1000).toFixed(count < 10_000 ? 1 : 0).replace(/\.0$/, '')}k`
+  return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+}
+
+const tokenTextOf = (e: TurnCompleteInput, options: Options, locale: string) => {
+  if (options.showTokens === false || !e.usage) return undefined
+
+  const usage = e.usage
+  const input = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens
+  const total = input + usage.output_tokens
+  const hitRate = input > 0 ? Math.round((usage.cache_read_input_tokens / input) * 100) : 0
+  const [totalWord, inputWord, cacheWord, outputWord] =
+    TOKEN_WORDS[languageOf(options, locale) as keyof typeof TOKEN_WORDS] ?? TOKEN_WORDS.English
+
+  return `${totalWord} ${compactTokens(total)} · ${inputWord} ${compactTokens(input)} · ${cacheWord} ${compactTokens(usage.cache_read_input_tokens)} (${hitRate}%) · ${outputWord} ${compactTokens(usage.output_tokens)}`
 }
 
 const timingOf = (loop: MainLoop, e: TurnCompleteInput, options: Options, locale: string): Timing => {
@@ -79,7 +108,7 @@ async function finish(
 ): Promise<TurnCompleteResult> {
   const timing = timingOf(loop, e, options, locale)
   const id = loop.lastMessageId ?? `turn-${e.turnId.replace(/[^A-Za-z0-9_-]/g, '') || 'main'}`
-  const row: TimingRow = { id, text: timing.text, isReady: true }
+  const row: TimingRow = { id, text: timing.text, tokens: tokenTextOf(e, options, locale), isReady: true }
   await update($, rows, list => [...list.filter(one => one.id !== id), row].slice(-50))
   return result
 }
@@ -163,7 +192,9 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         {engine}
         <Box marginTop={1}>
-          <Text dimColor size="caption" wrap="truncate-end">{row.text}</Text>
+          <Text dimColor size="caption" wrap="truncate-end">
+            {row.tokens ? `${row.text} · ${row.tokens}` : row.text}
+          </Text>
         </Box>
       </Box>
     )

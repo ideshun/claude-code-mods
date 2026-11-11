@@ -5,14 +5,14 @@
 ## 表示例
 
 ```text
-Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s
+Ran 7 commands, read 3 files · 作業 1m30s · 思考 12s · 回答 8s · ツール 1m10s · Token 13k · 入力 12k · キャッシュ 8k (67%) · 出力 1k
 ```
 
-追加部分は最小サイズの淡色テキストで、狭い幅では切り詰めます。表示専用であり、transcript ファイルやモデルコンテキストには入りません。
+同じ行の末尾に、エンジンが usage を返した場合の token 統計を追加します。追加部分は最小サイズの淡色テキストで、狭い幅では切り詰めます。表示専用であり、transcript ファイルやモデルコンテキストには入りません。
 
 ## インストール
 
-marketplace からのワンステップインストールには Claude Code 2.1.275+ が必要です。function-hook API は Claude Desktop Code タブ同梱の Claude Code 2.1.317 を対象としています。
+marketplace からのワンステップインストールには Claude Code 2.1.275+ が必要です。function-hook API は Claude Desktop Code タブ同梱の Claude Code 2.1.321 を対象としています。
 
 ```bash
 /plugin marketplace add ideshun/claude-code-mods
@@ -32,6 +32,7 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | 項目 | 値 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | 言語名で表示。`Auto` は明示的な中国語/日本語ロケール変数に従う |
+| `showTokens` | 真偽値 | `true` | 時間表示の下に合計・入力・キャッシュ・出力 token を表示 |
 | `prefix` | 文字列 | 空 | 時間表示の前の文字/絵文字 |
 | `totalLabel` | 文字列 | 空 | 合計時間のカスタムラベル |
 | `thinkingLabel` | 文字列 | 空 | 思考時間のカスタムラベル |
@@ -48,8 +49,10 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | 思考 | ストリーミングされた `thinking` chunk の時間 |
 | 回答 | テキストおよびツール呼び出し chunk の時間 |
 | ツール | メインループのツール実行時間 |
+| Token 合計 | `turn.complete.usage`: 未キャッシュ入力 + キャッシュ書込 + キャッシュ読込 + 出力 |
+| キャッシュ命中率 | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-完了した返信ごとに最後の assistant メッセージ末尾へ 1 行を置き、以前の返信は書き換わりません。サブエージェントは対象外です。三つの推定値は権威ある合計値を超えないよう正規化されます。
+完了した返信ごとに最後の assistant メッセージ末尾へ 1 行を置き、以前の返信は書き換わりません。token はエンジンが報告するターン合計で、usage がない場合は token 指標を表示しません。サブエージェントは対象外です。三つの推定値は権威ある合計値を超えないよう正規化されます。
 
 ## 検証
 

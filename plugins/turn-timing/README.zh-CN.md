@@ -5,14 +5,14 @@
 ## 效果
 
 ```text
-Ran 7 commands, read 3 files · 工作 1m30s · 思考 12s · 回答 8s · 工具 1m10s
+Ran 7 commands, read 3 files · 工作 1m30s · 思考 12s · 回答 8s · 工具 1m10s · Token 13k · 输入 12k · 缓存 8k (67%) · 输出 1k
 ```
 
-后缀使用最小号、弱化颜色并在窄布局中截断；仅用于显示，不进入 transcript 文件，也不进入模型上下文。
+同一行末尾会附带引擎返回本轮 usage 时的 token 统计。后缀使用最小号、弱化颜色并在窄布局中截断；仅用于显示，不进入 transcript 文件，也不进入模型上下文。
 
 ## 安装
 
-一键 marketplace 安装需要 Claude Code 2.1.275+。函数钩子 API 针对 Claude Desktop Code 标签页内置的 Claude Code 2.1.317。
+一键 marketplace 安装需要 Claude Code 2.1.275+。函数钩子 API 针对 Claude Desktop Code 标签页内置的 Claude Code 2.1.321。
 
 ```bash
 /plugin marketplace add ideshun/claude-code-mods
@@ -32,6 +32,7 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | 选项 | 可选值 | 默认值 | 含义 |
 | --- | --- | --- | --- |
 | `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | 以语言本名显示；`Auto` 跟随明确的中日文环境变量 |
+| `showTokens` | 布尔 | `true` | 在耗时行下显示总 token、输入、缓存命中和输出 |
 | `prefix` | 字符串 | 空 | 耗时前可选的字符或 emoji |
 | `totalLabel` | 字符串 | 空 | 总耗时自定义标签 |
 | `thinkingLabel` | 字符串 | 空 | 思考耗时自定义标签 |
@@ -48,6 +49,7 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
     "turn-timing@claude-code-mods": {
       "options": {
         "language": "中文",
+        "showTokens": true,
         "prefix": "⏱"
       }
     }
@@ -63,8 +65,10 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | 思考 | 流式 `thinking` 片段时间 |
 | 回答 | 流式文本与工具调用片段时间 |
 | 工具 | 主循环工具调用执行时间 |
+| Token 总量 | `turn.complete.usage`：未缓存输入 + 缓存写入 + 缓存读取 + 输出 |
+| 缓存命中率 | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-每次完成的回复只在最后一条 assistant 消息末尾显示一条耗时行，旧回复保持各自数值；子 Agent 回合不统计。三个估算值会归一化，不会超过权威总耗时。
+每次完成的回复只在最后一条 assistant 消息末尾显示一条耗时行，旧回复保持各自数值。token 是引擎报告的整轮汇总；没有 usage 时不显示 token 指标；子 Agent 回合不统计。三个估算值会归一化，不会超过权威总耗时。
 
 ## 验证
 

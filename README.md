@@ -50,10 +50,10 @@ Claude Desktop's Code tab does not offer `/plugin install`; configure installed 
 After installing, finish any reply. Its end of the reply body gets a compact suffix like:
 
 ```text
-Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s
+Ran 7 commands, read 3 files · Worked 1m30s · Thought 12s · Responded 8s · Tools 1m10s · Tokens 13k · Input 12k · Cache 8k (67%) · Output 1k
 ```
 
-The Plugins settings expose `Auto`, `中文`, `English`, `日本語` and `Custom`. The default is `English`; `Auto` follows an explicit Chinese or Japanese `LANG` / `LC_ALL` / `LC_MESSAGES`, and `Custom` uses the four label fields.
+Token metrics are enabled by default (`showTokens`). The Plugins settings expose `Auto`, `中文`, `English`, `日本語` and `Custom`. The default is `English`; `Auto` follows an explicit Chinese or Japanese `LANG` / `LC_ALL` / `LC_MESSAGES`, and `Custom` uses the four label fields.
 
 ## Development
 
