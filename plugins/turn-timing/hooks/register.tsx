@@ -1,12 +1,10 @@
-import { atom, derive, read, update } from 'claude-code'
-import type { EngineInterface, Register, TurnCompleteInput, TurnCompleteResult } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { Register, TurnCompleteInput } from 'claude-code'
 
 import type { Timing, TimingRow } from '../types'
 
-const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-9' })
-const byId = derive([rows], list => new Map(list.flatMap(row =>
-  [row.id, ...(row.messageIds ?? [])].map(id => [id, row] as const),
-)))
+const HISTORY_LIMIT = 50
+const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-10' })
 
 type MainLoop = {
   turnId: string
@@ -15,9 +13,9 @@ type MainLoop = {
   toolsMs: number
   activeTools: number
   toolsStartedAt: number
-  lastMessageId?: string
-  lastMessageIds?: Set<string>
-  lastRenderedMessage?: { id: string; text: string }
+  messageIds: string[]
+  answer: string
+  renders: Map<string, { surface: string; id: string; text: string }>
 }
 
 type Options = Parameters<Register>[1]
@@ -95,7 +93,7 @@ const timingOf = (loop: MainLoop, e: TurnCompleteInput, options: Options, locale
   const timing: Timing = {
     totalMs: e.durationMs,
     thinkingMs,
-    respondingMs: modelMs - thinkingMs,
+    respondingMs: Math.min(modelMs - thinkingMs, Math.round(loop.respondingMs * scale)),
     toolsMs,
     text: '',
   }
@@ -105,65 +103,60 @@ const timingOf = (loop: MainLoop, e: TurnCompleteInput, options: Options, locale
 
 const empty = (turnId: string): MainLoop => ({
   turnId, thinkingMs: 0, respondingMs: 0, toolsMs: 0, activeTools: 0, toolsStartedAt: 0,
+  messageIds: [], answer: '', renders: new Map(),
 })
-
-async function finish(
-  $: EngineInterface,
-  e: TurnCompleteInput,
-  result: TurnCompleteResult,
-  loop: MainLoop,
-  options: Options,
-  locale: string,
-): Promise<TurnCompleteResult> {
-  const timing = timingOf(loop, e, options, locale)
-  const id = loop.lastMessageId ?? `turn-${e.turnId.replace(/[^A-Za-z0-9_-]/g, '') || 'main'}`
-  const row: TimingRow = {
-    id, messageIds: [...(loop.lastMessageIds ?? [])],
-    text: timing.text, tokens: tokenTextOf(e, options, locale), isReady: true,
-  }
-  await update($, rows, list => [...list.filter(one => one.id !== id), row].slice(-50))
-  return result
-}
 
 export const register: Register = (on, options) => {
   let localePromise: Promise<string> | null = null
   let current: MainLoop | null = null
-  const seenMessageIds = new Set<string>()
+  let generation = 0
+  const loops = new Map<string, MainLoop>()
+  // Only the retained rows own bindings; rendering never writes engine state.
+  const bindings = new Map<string, Map<string, string>>()
 
   on('turn.start', (_, e, next) => {
-    if (e.agentId === undefined) current = empty(e.turnId)
+    if (e.agentId === undefined) {
+      current = empty(e.turnId)
+      loops.set(e.turnId, current)
+    }
     return next(e)
   })
+
+  on('session.end', async ($, e, next) => {
+    generation++
+    current = null
+    loops.clear()
+    bindings.clear()
+    localePromise = null
+    await update($, rows, () => [])
+    return next(e)
+  })
+  .catch((_, e, next) => next(e))
 
   on('session.append', { door: 'response' }, async (_, e, next) => {
     const loop = e.agentId === undefined ? current : null
     const result = await next(e)
-    const content = result.message?.type === 'assistant' && Array.isArray(result.message.content)
-      ? result.message.content
-      : []
-    const rowId = typeof result.uuid === 'string' ? result.uuid : undefined
-    const textBlocks = content.filter(block => block.type === 'text' && typeof block.text === 'string' && block.text !== '')
+    if (!loop || result.message?.type !== 'assistant') return result
+    const textBlocks = result.message.content.filter(block =>
+      block.type === 'text' && typeof block.text === 'string' && block.text !== '',
+    )
     const lastText = textBlocks.at(-1)?.text
-    if (loop && rowId && typeof lastText === 'string' && lastText.trim() !== '') {
-      const messageId = (result.message as { id?: unknown }).id
-      const apiId = typeof messageId === 'string' ? messageId : undefined
-      const messageIds = [rowId, ...(apiId ? [apiId] : [])]
-      // Desktop draws individual text blocks as <message id>-t<text index>.
-      loop.lastMessageIds = new Set(messageIds.flatMap(id => [id, `${id}-t${textBlocks.length - 1}`]))
-      const rendered = loop.lastRenderedMessage
-      loop.lastMessageId = rendered && (
-        loop.lastMessageIds.has(rendered.id) || rendered.text === lastText
-      ) ? rendered.id : apiId ?? rowId
-    }
+    if (typeof lastText !== 'string' || lastText.trim() === '') return result
+
+    // API id is optional: the host normally exposes only the stored row UUID.
+    const apiId = (result.message as { id?: unknown }).id
+    const ids = [result.uuid, ...(typeof apiId === 'string' ? [apiId] : [])]
+      .filter((id): id is string => typeof id === 'string')
+    loop.messageIds = ids.flatMap(id => [id, `${id}-t${textBlocks.length - 1}`])
+    loop.answer = lastText
     return result
   })
   .catch((_, e, next) => next(e))
 
   // Chunks are model response time; tool time is measured by the tool.call hook.
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId !== undefined || !current) return yield* next(e)
-
-    const loop = current
+    const loop = e.agentId === undefined ? loops.get(e.turnId) : undefined
+    if (!loop) return yield* next(e)
     let mode: 'thinking' | 'responding' | 'idle' = 'idle'
     let since = await $.clock.now()
 
@@ -207,29 +200,77 @@ export const register: Register = (on, options) => {
   .catch((_, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
+    if (e.agentId !== undefined) return next(e)
+    const loop = loops.get(e.turnId) ?? empty(e.turnId)
+    const sessionGeneration = generation
+    loops.delete(e.turnId)
+    if (current === loop) current = null
+    const endedAt = await $.clock.now()
+    const snapshot = {
+      ...loop,
+      toolsMs: loop.toolsMs + (loop.activeTools > 0 ? Math.max(0, endedAt - loop.toolsStartedAt) : 0),
+    }
     const result = await next(e)
-    if (e.agentId !== undefined) return result
     localePromise ??= Promise.all([
-      $.env.get('LC_ALL'),
-      $.env.get('LC_MESSAGES'),
-      $.env.get('LANG'),
-    ]).then(values => values.find(value => value && value !== 'C') ?? 'en')
-    await finish($, e, result, current ?? empty(e.turnId), options, await localePromise)
-    current = null
+      $.env.get('LC_ALL'), $.env.get('LC_MESSAGES'), $.env.get('LANG'),
+    ]).then(values => values.find(value => value) ?? 'en')
+    const locale = await localePromise
+    if (generation !== sessionGeneration) return result
+
+    const timing = timingOf(snapshot, e, options, locale)
+    const answer = loop.answer || e.answer
+    const row: TimingRow = {
+      id: e.turnId, messageIds: loop.messageIds, answer,
+      text: timing.text, tokens: tokenTextOf(e, options, locale),
+    }
+    const bound = new Map<string, string>()
+    for (const surface of new Set([...loop.renders.values()].map(render => render.surface))) {
+      const candidates = [...loop.renders.values()].filter(render => render.surface === surface)
+      const exact = candidates.filter(render => row.messageIds.includes(render.id))
+      const byText = candidates.filter(render => answer !== '' && render.text === answer)
+      const matches = exact.length ? exact : byText
+      // A render-only host can still identify a single reply block.
+      const match = matches.length === 1 ? matches[0]
+        : answer === '' && candidates.length === 1 ? candidates[0] : undefined
+      if (match) {
+        bound.set(surface, match.id)
+        row.messageIds.push(match.id)
+      }
+    }
+    bindings.set(row.id, bound)
+    if (generation !== sessionGeneration) return result
+    const saved = await update($, rows, previous => [...previous.filter(one => one.id !== row.id), row].slice(-HISTORY_LIMIT))
+    const retained = new Set(saved.map(one => one.id))
+    for (const id of bindings.keys()) if (!retained.has(id)) bindings.delete(id)
     return result
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (current && e.props.text.trim() !== '') {
-      if (current.lastMessageIds?.has(e.requestId) || !seenMessageIds.has(e.requestId)) {
-        current.lastMessageId = e.requestId
-        current.lastRenderedMessage = { id: e.requestId, text: e.props.text }
-      }
+    const list = await read($, rows)
+    const owner = list.find(one => one.messageIds.includes(e.requestId) ||
+      bindings.get(one.id)?.get(e.surface) === e.requestId)
+    if (current && !owner && e.props.text.trim() !== '') {
+      const key = `${e.surface}\0${e.requestId}`
+      current.renders.set(key, { surface: e.surface, id: e.requestId, text: e.props.text })
+      if (current.renders.size > 256) current.renders.delete(current.renders.keys().next().value!)
     }
-    seenMessageIds.add(e.requestId)
+    if (current && !owner) return next(e)
 
-    const row = (await read($, byId)).get(e.requestId)
+    // Late drawing must not depend on turn.start/complete still being active.
+    // Identical answers without an explicit ID are ambiguous: do not guess.
+    const isEarlierBlock = list.some(one => one.messageIds.some(id =>
+      /-t\d+$/.test(id) && id !== e.requestId &&
+      id.replace(/-t\d+$/, '') === e.requestId.replace(/-t\d+$/, ''),
+    ))
+    const matches = owner ? [owner] : isEarlierBlock ? []
+      : list.filter(one => one.answer !== '' && one.answer === e.props.text)
+    const row = matches.length === 1 ? matches[0] : undefined
     if (!row) return next(e)
+    const bound = bindings.get(row.id) ?? new Map<string, string>()
+    const boundId = bound.get(e.surface)
+    if (boundId !== undefined && boundId !== e.requestId) return next(e)
+    bound.set(e.surface, e.requestId)
+    bindings.set(row.id, bound)
 
     const engine = await next(e)
     const { Box, Text } = $.ui.resolve(e)
@@ -237,7 +278,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         {engine}
         <Box marginTop={1}>
-          <Text dimColor size="caption" wrap="truncate-end">
+          <Text dimColor size="caption" wrap="wrap">
             {row.tokens ? `${row.text} & ${row.tokens}` : row.text}
           </Text>
         </Box>

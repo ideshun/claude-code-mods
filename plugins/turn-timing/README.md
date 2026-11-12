@@ -12,7 +12,7 @@
 Worked 7m23s · Thought 2m18s · Responded 1m57s · Tools 3m8s & Tokens 9.5M · Input 9.5M · Cache 9.2M (98%) · Output 40k
 ```
 
-Optional token metrics follow on the same line when the engine reports usage. The plugin adds only this line; it does not add the reply body above it. It uses caption-sized dim text and truncates on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.
+Optional token metrics follow on the same line when the engine reports usage. The plugin adds only this line; it does not add the reply body above it. It uses caption-sized dim text and wraps on narrow layouts. It is display-only: it does not enter the transcript file or the model's context.
 
 ## Installation
 
@@ -76,9 +76,20 @@ Example `~/.claude/settings.json`:
 | Tokens | `turn.complete.usage` total = uncached input + cache write + cache read + output |
 | Cache hit | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-Each completed reply places one timing line at the end of the reply body with its own value; earlier rows keep their own values. The row is bound to the reply's final stored assistant message, so repainting an older message does not move the current timing. Token usage is the turn total reported by the engine; when no usage exists, token metrics are omitted. Subagent turns are ignored. The three estimates are normalized so they never exceed the authoritative total.
+Each completed reply receives timing on its final text block. Stored row IDs are preferred; when the host omits the API message ID, a unique matching final text can bind a late render. A bound row stays on one block per surface. Subagent turns are ignored. Token usage is the engine's turn total; absent usage hides token metrics. Thinking and responding count observed streaming time only; network waits and other unclassified time remain in Total, so the parts may sum to less than Total.
 
 ## Verification
+
+From the repository root, run all checks with the target host's Claude Code binary:
+
+```bash
+CLAUDE_BIN="/path/to/desktop-bundled/claude" ./scripts/verify.sh
+# Also compare a local installation's manifest, hook and types:
+CLAUDE_BIN="/path/to/desktop-bundled/claude" ./scripts/verify.sh "/path/to/installed/turn-timing"
+```
+
+This requires TypeScript (`tsc`) and the host-generated `.claude-plugin/types`. Before publishing, use a new version number and tag, install the candidate from a clean marketplace checkout, compare the installed files, and verify two successive replies in a new Desktop session. Repeat after update and reinstall; unit tests alone do not verify Desktop rendering.
+
 
 ```bash
 claude plugin validate plugins/turn-timing
@@ -89,7 +100,9 @@ Tests cover one row per reply, independent values, history repaints, language pr
 
 ## Limitations
 
-- Only completed replies receive one timing line at the end of the reply body.
+- Only completed replies receive timing. The latest 50 completed turns are retained; `/clear` and session end discard them.
+- If IDs are unavailable and identical final texts are ambiguous, the plugin omits timing rather than guessing.
+- At most 256 render candidates are tracked for an active turn; use a stable host message ID if larger transcripts require more.
 - Thinking/responding/tool splits are client-side estimates; total is authoritative.
 - The terminal renderer ignores `size="caption"`; Claude Desktop uses caption-sized text.
 - A paused or sleeping computer is measured as elapsed wall-clock time.

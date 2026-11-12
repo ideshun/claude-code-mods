@@ -19,7 +19,7 @@ Each installable plugin lives in its own folder under `plugins/`. The root `.cla
 
 | Plugin | Category | What it does | Status |
 | --- | --- | --- | --- |
-| [turn-timing](plugins/turn-timing/README.en.md) | UI / timing | Adds compact, configurable per-reply timing to Claude Desktop's end of the reply body | v0.1.3 |
+| [turn-timing](plugins/turn-timing/README.en.md) | UI / timing | Adds compact, configurable per-reply timing to Claude Desktop's end of the reply body | v0.1.4 |
 
 The plugin has [English](plugins/turn-timing/README.en.md), [中文](plugins/turn-timing/README.zh-CN.md) and [日本語](plugins/turn-timing/README.ja-JP.md) documentation.
 

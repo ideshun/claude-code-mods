@@ -1,9 +1,10 @@
+import type { TurnCompleteInput } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
-import type { TestBody } from 'claude-code/testing'
+import type { Mounted, TestBody } from 'claude-code/testing'
 
 const turn = { text: 'hello', turnId: 'turn-1' } as const
 
-const complete = (durationMs: number, turnId = 'turn-1', usage?: any) => ({
+const complete = (durationMs: number, turnId = 'turn-1', usage?: TurnCompleteInput['usage']) => ({
   ...turn,
   turnId,
   answer: '',
@@ -28,15 +29,15 @@ const bottom = (on: Parameters<TestBody>[1], locale = 'en_US.UTF-8') => {
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('tool.call', () => ({ result: {} }))
   on('ui.render', ($, e) => {
-    const { Text } = $.ui.resolve(e as never)
+    const { Text } = $.ui.resolve({ ...e, surface: 'desktop' })
     return <Text>engine answer</Text>
   })
 }
 
-const timing = async (ui: any) => (await ui.find({ type: 'Text', text: /Worked|工作|作業|Total/ }))?.text
-const tokenText = async (ui: any) => (await ui.find({ type: 'Text', text: /Tokens|Token/ }))?.text
+const timing = async (ui: Pick<Mounted<'desktop', 'AssistantMessage'>, 'find'>) => (await ui.find({ type: 'Text', text: /Worked|工作|作業|Total/ }))?.text
+const tokenText = async (ui: Pick<Mounted<'desktop', 'AssistantMessage'>, 'find'>) => (await ui.find({ type: 'Text', text: /Tokens|Token/ }))?.text
 
-const showAnswer = async ($: any, id = 'msg-1') => {
+const showAnswer = async ($: Parameters<TestBody>[0], id = 'msg-1') => {
   await $.session.append({
     uuid: id, door: 'response', origin: { kind: 'model', model: 'test' },
     message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text: 'engine answer' }] },
@@ -148,7 +149,7 @@ test('timing estimates split a 90s reply', async ($, on) => {
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('ui.render', ($, e) => {
-    const { Text } = $.ui.resolve(e as never)
+    const { Text } = $.ui.resolve({ ...e, surface: 'desktop' })
     return <Text>engine answer</Text>
   })
   on('tool.call', async () => {
@@ -187,7 +188,7 @@ test('custom prefix and labels override built-in language', { options: {
   await $.turn.complete(complete(30000))
 
   const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
-  expect(await timing(ui)).toContain('⏱ Total 30s · Think 0s · Reply 30s · Tools 0s')
+  expect(await timing(ui)).toContain('⏱ Total 30s · Think 0s · Reply 0s · Tools 0s')
   await ui.unmount()
 })
 
@@ -244,7 +245,7 @@ test('falls back to render tracking when no append binding exists', async ($, on
   await done.unmount()
 })
 
-test('falls back to the first unseen render when append IDs do not match', async ($, on) => {
+test('matches the stored final text when append IDs do not match', async ($, on) => {
   bottom(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.turn.start(turn)
@@ -321,7 +322,7 @@ test('overlapping tool calls count wall-clock time once', async ($, on) => {
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('ui.render', ($, e) => {
-    const { Text } = $.ui.resolve(e as never)
+    const { Text } = $.ui.resolve({ ...e, surface: 'desktop' })
     return <Text>engine answer</Text>
   })
   on('tool.call', async () => {
@@ -336,7 +337,7 @@ test('overlapping tool calls count wall-clock time once', async ($, on) => {
   await Promise.all([a, b, clock.set(10000)])
   await $.turn.complete(complete(20000))
   const ui = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
-  expect(await timing(ui)).toContain('Responded 10s · Tools 10s')
+  expect(await timing(ui)).toContain('Responded 0s · Tools 10s')
   await ui.unmount()
 })
 
@@ -371,7 +372,7 @@ test('partially overlapping and sequential tools count only occupied intervals',
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('ui.render', ($, e) => {
-    const { Text } = $.ui.resolve(e as never)
+    const { Text } = $.ui.resolve({ ...e, surface: 'desktop' })
     return <Text>engine answer</Text>
   })
   on('tool.call', async () => {
@@ -390,7 +391,7 @@ test('partially overlapping and sequential tools count only occupied intervals',
   await Promise.all([c, clock.set(30000)])
   await $.turn.complete(complete(40000))
   const ui = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
-  expect(await timing(ui)).toContain('Responded 15s · Tools 25s')
+  expect(await timing(ui)).toContain('Responded 0s · Tools 25s')
   await ui.unmount()
 })
 
@@ -429,10 +430,161 @@ test('Desktop block first rendered after completion gets timing on its final tex
     } as any,
   })
   await $.turn.complete(complete(30000))
-  const first = await $.ui.mount({ ...assistant('late-api-t0'), surface: 'desktop' })
+  const first = await $.ui.mount({ ...assistant('late-api-t0'), props: { text: 'intermediate', isFirstOfReply: true }, surface: 'desktop' })
   expect(await timing(first)).toBeUndefined()
   await first.unmount()
   const done = await $.ui.mount({ ...assistant('late-api-t1'), surface: 'desktop' })
   expect(await timing(done)).toContain('Worked 30s')
   await done.unmount()
+})
+
+test('normalized append without API id binds a late Desktop render', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await $.session.append({
+    uuid: 'review-stored-row', door: 'response', origin: { kind: 'model', model: 'test' },
+    message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text: 'engine answer' }] },
+  })
+  await $.turn.complete(complete(30000))
+  const ui = await $.ui.mount({ ...assistant('review-api-t0'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 30s')
+  await ui.unmount()
+})
+
+test('history first drawn during an active turn cannot steal timing', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'review-current')
+  const history = await $.ui.mount({ ...assistant('review-old-unseen'), surface: 'desktop' })
+  await history.unmount()
+  await $.turn.complete(complete(30000))
+  const ui = await $.ui.mount({ ...assistant('review-current'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 30s')
+  await ui.unmount()
+  const old = await $.ui.mount({ ...assistant('review-old-unseen'), surface: 'desktop' })
+  expect(await timing(old)).toBeUndefined()
+  await old.unmount()
+})
+
+test('a delayed completion cannot consume or clear the next turn', async ($, on) => {
+  let release!: () => void
+  let entered!: () => void
+  const held = new Promise<void>(resolve => { release = resolve })
+  const waiting = new Promise<void>(resolve => { entered = resolve })
+  on('turn.complete', { turnId: 'turn-1' }, async (_, e, next) => {
+    entered()
+    await held
+    return next(e)
+  })
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'isolated-first')
+  const firstComplete = $.turn.complete(complete(30000))
+  await waiting
+  await $.turn.start({ ...turn, turnId: 'turn-2' })
+  await showAnswer($, 'isolated-second')
+  release()
+  await firstComplete
+  await $.turn.complete(complete(50000, 'turn-2'))
+  for (const [id, expected] of [['isolated-first', 'Worked 30s'], ['isolated-second', 'Worked 50s']]) {
+    const ui = await $.ui.mount({ ...assistant(id!), surface: 'desktop' })
+    expect(await timing(ui)).toContain(expected)
+    await ui.unmount()
+  }
+})
+
+test('session clear removes timing and prevents old completion from restoring it', async ($, on) => {
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  let release!: () => void
+  let entered!: () => void
+  const held = new Promise<void>(resolve => { release = resolve })
+  const waiting = new Promise<void>(resolve => { entered = resolve })
+  on('turn.complete', { turnId: 'turn-2' }, async (_, e, next) => {
+    entered()
+    await held
+    return next(e)
+  })
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'before-clear')
+  await $.turn.complete(complete(30000))
+  await $.turn.start({ ...turn, turnId: 'turn-2' })
+  await showAnswer($, 'pending-clear')
+  const pending = $.turn.complete(complete(50000, 'turn-2'))
+  await waiting
+  await $.session.end({ reason: 'clear', sessionId: 'test-session', resume: { id: 'test-session' } })
+  release()
+  await pending
+  for (const id of ['before-clear', 'pending-clear']) {
+    const ui = await $.ui.mount({ ...assistant(id), surface: 'desktop' })
+    expect(await timing(ui)).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('history retains the latest 50 completed turns', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (let index = 0; index < 51; index++) {
+    const turnId = `history-turn-${index}`
+    await $.turn.start({ ...turn, turnId })
+    await showAnswer($, `history-msg-${index}`)
+    await $.turn.complete(complete(30000, turnId))
+  }
+  for (const index of [0, 1, 50]) {
+    const ui = await $.ui.mount({ ...assistant(`history-msg-${index}`), surface: 'desktop' })
+    if (index === 0) expect(await timing(ui)).toBeUndefined()
+    else expect(await timing(ui)).toContain('Worked 30s')
+    await ui.unmount()
+  }
+})
+
+test('identical unbound answers never guess which late render owns a turn', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const turnId of ['duplicate-1', 'duplicate-2']) {
+    await $.turn.start({ ...turn, turnId })
+    await $.session.append({
+      uuid: `${turnId}-row`, door: 'response', origin: { kind: 'model', model: 'test' },
+      message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text: 'engine answer' }] },
+    })
+    await $.turn.complete(complete(30000, turnId))
+  }
+  const ui = await $.ui.mount({ ...assistant('unrelated-api-t0'), surface: 'desktop' })
+  expect(await timing(ui)).toBeUndefined()
+  await ui.unmount()
+})
+
+test('an interrupted turn includes tools that are still running', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.env(on, { LANG: 'en_US.UTF-8' })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve({ ...e, surface: 'desktop' })
+    return <Text>engine answer</Text>
+  })
+  let entered!: () => void
+  const waiting = new Promise<void>(resolve => { entered = resolve })
+  on('tool.call', async () => {
+    entered()
+    await clock.sleep(10000)
+    return { result: {} }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'interrupted-tool')
+  const running = $.tool.call({ tool: 'Bash', command: 'test' })
+  await waiting
+  await clock.set(5000)
+  await $.turn.complete({ ...complete(5000), isAborted: true, reason: 'aborted' })
+  await Promise.all([running, clock.set(10000)])
+  const ui = await $.ui.mount({ ...assistant('interrupted-tool'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 5s · Thought 0s · Responded 0s · Tools 5s')
+  await ui.unmount()
 })

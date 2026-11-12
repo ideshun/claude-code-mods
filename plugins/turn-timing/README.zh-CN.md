@@ -10,7 +10,7 @@
 工作 7m23s · 思考 2m18s · 回答 1m57s · 工具 3m8s & Token 9.5M · 输入 9.5M · 缓存 9.2M (98%) · 输出 40k
 ```
 
-引擎返回本轮 usage 时，token 指标会接在同一行。插件只追加这一行，不修改上方回复正文。该行使用最小号、弱化颜色并在窄布局中截断；仅用于显示，不进入 transcript 文件，也不进入模型上下文。
+引擎返回本轮 usage 时，token 指标会接在同一行。插件只追加这一行，不修改上方回复正文。该行使用最小号、弱化颜色并在窄布局中换行；仅用于显示，不进入 transcript 文件，也不进入模型上下文。
 
 ## 安装
 
@@ -70,9 +70,20 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | Token 总量 | `turn.complete.usage`：未缓存输入 + 缓存写入 + 缓存读取 + 输出 |
 | 缓存命中率 | `cache_read_input_tokens / (input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` |
 
-每次完成的回复只在最后一条 assistant 消息末尾显示一条耗时行，旧回复保持各自数值。耗时绑定到该回复最后一条已存储的 assistant 消息，重新绘制旧消息不会移动当前耗时。token 是引擎报告的整轮汇总；没有 usage 时不显示 token 指标；子 Agent 回合不统计。三个估算值会归一化，不会超过权威总耗时。
+完成后的统计绑定到最终文本块，优先使用消息 ID；宿主不提供 API message ID 时，可通过唯一匹配的最终文本绑定晚到的渲染。每个界面只绑定一个文本块，历史重绘不会因为“首次见到 ID”而抢占统计。token 使用引擎报告的整轮汇总；缺少 usage 时不显示。子 Agent 回合不统计。思考、回答只累计实际观测到的流时间，网络等待等未分类时间只保留在总耗时中，因此分项之和可以小于总耗时。
 
 ## 验证
+
+在仓库根目录使用目标 Desktop 内置的 Claude Code 运行完整检查：
+
+```bash
+CLAUDE_BIN="/目标宿主的/claude" ./scripts/verify.sh
+# 同时核对实际安装的版本、hook 和类型文件：
+CLAUDE_BIN="/目标宿主的/claude" ./scripts/verify.sh "/已安装的/turn-timing"
+```
+
+需要 TypeScript（`tsc`）和宿主生成的 `.claude-plugin/types`。发布修复必须递增版本并使用新标签；从干净的 marketplace 检出安装候选版本，核对安装文件，再在新 Desktop 会话连续验证两轮回复。更新、重装后重复验证，单元测试不能替代真实界面验收。
+
 
 ```bash
 claude plugin validate plugins/turn-timing
@@ -83,7 +94,9 @@ claude plugin test plugins/turn-timing
 
 ## 限制
 
-- 每次完成的回复只显示一条耗时行。
+- 仅保存最近 50 个已完成轮次；`/clear` 和会话结束会清除记录。
+- ID 缺失且多条最终文本相同时，无法可靠区分的统计不显示，避免错误绑定。
+- 每个活动轮次最多追踪 256 个渲染候选；更大规模应优先使用宿主的稳定消息 ID。
 - 思考/回答/工具拆分是客户端估算；总耗时为权威值。
 - 终端渲染器忽略 `size="caption"`，Desktop 使用 caption 字号。
 - 电脑休眠/暂停计入墙钟耗时。

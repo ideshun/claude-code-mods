@@ -8,10 +8,10 @@ export type Timing = {
 
 export type TimingRow = {
   id: string
-  messageIds?: string[]
+  messageIds: string[]
+  answer: string
   text: string
   tokens?: string
-  isReady: boolean
 }
 
 declare module 'claude-code' {

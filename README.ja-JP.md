@@ -19,7 +19,7 @@ docs/          共通ドキュメントとスクリーンショット（予定�
 
 | プラグイン | カテゴリ | 内容 | 状態 |
 | --- | --- | --- | --- |
-| [turn-timing](plugins/turn-timing/README.ja-JP.md) | UI / 時間計測 | 完了した返信ごとに、合計・思考・回答・ツール時間を返信末尾へ追加 | v0.1.3 |
+| [turn-timing](plugins/turn-timing/README.ja-JP.md) | UI / 時間計測 | 完了した返信ごとに、合計・思考・回答・ツール時間を返信末尾へ追加 | v0.1.4 |
 
 ドキュメントは [English](plugins/turn-timing/README.en.md)、[中文](plugins/turn-timing/README.zh-CN.md)、[日本語](plugins/turn-timing/README.ja-JP.md) を提供しています。
 

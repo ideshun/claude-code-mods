@@ -9,9 +9,15 @@
     {
       "name": "turn-timing",
       "source": "./plugins/turn-timing",
-      "description": "Append compact, configurable per-reply timing to Claude Desktop's collapsed activity summary.",
+      "description": "Append compact, configurable per-reply timing to the end of Claude Desktop replies.",
       "category": "ui",
-      "keywords": ["timing", "duration", "desktop", "activity-summary", "i18n"]
+      "keywords": [
+        "timing",
+        "duration",
+        "desktop",
+        "reply-footer",
+        "i18n"
+      ]
     }
   ]
 }
