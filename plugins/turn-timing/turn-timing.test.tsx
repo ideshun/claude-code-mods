@@ -393,3 +393,46 @@ test('partially overlapping and sequential tools count only occupied intervals',
   expect(await timing(ui)).toContain('Responded 15s · Tools 25s')
   await ui.unmount()
 })
+
+test('Desktop streaming block binding survives a later transcript append', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  const streaming = await $.ui.mount({ ...assistant('desktop-api-t0'), surface: 'desktop' })
+  await streaming.unmount()
+  await $.session.append({
+    uuid: 'desktop-row', door: 'response', origin: { kind: 'model', model: 'test' },
+    message: {
+      id: 'desktop-api', type: 'assistant', role: 'assistant',
+      content: [{ type: 'text', text: 'engine answer' }],
+    } as any,
+  })
+  await $.turn.complete(complete(30000))
+  const done = await $.ui.mount({ ...assistant('desktop-api-t0'), surface: 'desktop' })
+  expect(await timing(done)).toContain('Worked 30s')
+  await done.unmount()
+})
+
+test('Desktop block first rendered after completion gets timing on its final text block', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await $.session.append({
+    uuid: 'late-row', door: 'response', origin: { kind: 'model', model: 'test' },
+    message: {
+      id: 'late-api', type: 'assistant', role: 'assistant',
+      content: [
+        { type: 'text', text: 'intermediate' },
+        { type: 'thinking', thinking: 'thinking' },
+        { type: 'text', text: 'engine answer' },
+      ],
+    } as any,
+  })
+  await $.turn.complete(complete(30000))
+  const first = await $.ui.mount({ ...assistant('late-api-t0'), surface: 'desktop' })
+  expect(await timing(first)).toBeUndefined()
+  await first.unmount()
+  const done = await $.ui.mount({ ...assistant('late-api-t1'), surface: 'desktop' })
+  expect(await timing(done)).toContain('Worked 30s')
+  await done.unmount()
+})

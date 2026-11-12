@@ -4,8 +4,9 @@ import type { EngineInterface, Register, TurnCompleteInput, TurnCompleteResult }
 import type { Timing, TimingRow } from '../types'
 
 const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-9' })
-const byId = derive([rows], list => new Map(list.map(row => [row.id, row])))
-const seenMessageIds = new Set<string>()
+const byId = derive([rows], list => new Map(list.flatMap(row =>
+  [row.id, ...(row.messageIds ?? [])].map(id => [id, row] as const),
+)))
 
 type MainLoop = {
   turnId: string
@@ -16,6 +17,7 @@ type MainLoop = {
   toolsStartedAt: number
   lastMessageId?: string
   lastMessageIds?: Set<string>
+  lastRenderedMessage?: { id: string; text: string }
 }
 
 type Options = Parameters<Register>[1]
@@ -115,7 +117,10 @@ async function finish(
 ): Promise<TurnCompleteResult> {
   const timing = timingOf(loop, e, options, locale)
   const id = loop.lastMessageId ?? `turn-${e.turnId.replace(/[^A-Za-z0-9_-]/g, '') || 'main'}`
-  const row: TimingRow = { id, text: timing.text, tokens: tokenTextOf(e, options, locale), isReady: true }
+  const row: TimingRow = {
+    id, messageIds: [...(loop.lastMessageIds ?? [])],
+    text: timing.text, tokens: tokenTextOf(e, options, locale), isReady: true,
+  }
   await update($, rows, list => [...list.filter(one => one.id !== id), row].slice(-50))
   return result
 }
@@ -123,6 +128,7 @@ async function finish(
 export const register: Register = (on, options) => {
   let localePromise: Promise<string> | null = null
   let current: MainLoop | null = null
+  const seenMessageIds = new Set<string>()
 
   on('turn.start', (_, e, next) => {
     if (e.agentId === undefined) current = empty(e.turnId)
@@ -136,14 +142,22 @@ export const register: Register = (on, options) => {
       ? result.message.content
       : []
     const rowId = typeof result.uuid === 'string' ? result.uuid : undefined
-    if (loop && rowId && content.some(block => block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')) {
+    const textBlocks = content.filter(block => block.type === 'text' && typeof block.text === 'string' && block.text !== '')
+    const lastText = textBlocks.at(-1)?.text
+    if (loop && rowId && typeof lastText === 'string' && lastText.trim() !== '') {
       const messageId = (result.message as { id?: unknown }).id
       const apiId = typeof messageId === 'string' ? messageId : undefined
-      loop.lastMessageId = apiId ?? rowId
-      loop.lastMessageIds = new Set([rowId, ...(apiId ? [apiId] : [])])
+      const messageIds = [rowId, ...(apiId ? [apiId] : [])]
+      // Desktop draws individual text blocks as <message id>-t<text index>.
+      loop.lastMessageIds = new Set(messageIds.flatMap(id => [id, `${id}-t${textBlocks.length - 1}`]))
+      const rendered = loop.lastRenderedMessage
+      loop.lastMessageId = rendered && (
+        loop.lastMessageIds.has(rendered.id) || rendered.text === lastText
+      ) ? rendered.id : apiId ?? rowId
     }
     return result
   })
+  .catch((_, e, next) => next(e))
 
   // Chunks are model response time; tool time is measured by the tool.call hook.
   on('turn.step', async function* ($, e, next) {
@@ -209,9 +223,10 @@ export const register: Register = (on, options) => {
     if (current && e.props.text.trim() !== '') {
       if (current.lastMessageIds?.has(e.requestId) || !seenMessageIds.has(e.requestId)) {
         current.lastMessageId = e.requestId
+        current.lastRenderedMessage = { id: e.requestId, text: e.props.text }
       }
-      seenMessageIds.add(e.requestId)
     }
+    seenMessageIds.add(e.requestId)
 
     const row = (await read($, byId)).get(e.requestId)
     if (!row) return next(e)

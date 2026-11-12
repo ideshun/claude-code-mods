@@ -8,6 +8,7 @@ export type Timing = {
 
 export type TimingRow = {
   id: string
+  messageIds?: string[]
   text: string
   tokens?: string
   isReady: boolean
