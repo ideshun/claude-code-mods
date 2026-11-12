@@ -207,9 +207,7 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (current && e.props.text.trim() !== '') {
-      if (current.lastMessageIds) {
-        if (current.lastMessageIds.has(e.requestId)) current.lastMessageId = e.requestId
-      } else if (!seenMessageIds.has(e.requestId)) {
+      if (current.lastMessageIds?.has(e.requestId) || !seenMessageIds.has(e.requestId)) {
         current.lastMessageId = e.requestId
       }
       seenMessageIds.add(e.requestId)
