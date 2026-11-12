@@ -5,6 +5,7 @@ import type { Timing, TimingRow } from '../types'
 
 const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-9' })
 const byId = derive([rows], list => new Map(list.map(row => [row.id, row])))
+const seenMessageIds = new Set<string>()
 
 type MainLoop = {
   turnId: string
@@ -205,8 +206,13 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (current && e.props.text.trim() !== '' && current.lastMessageIds?.has(e.requestId)) {
-      current.lastMessageId = e.requestId
+    if (current && e.props.text.trim() !== '') {
+      if (current.lastMessageIds) {
+        if (current.lastMessageIds.has(e.requestId)) current.lastMessageId = e.requestId
+      } else if (!seenMessageIds.has(e.requestId)) {
+        current.lastMessageId = e.requestId
+      }
+      seenMessageIds.add(e.requestId)
     }
 
     const row = (await read($, byId)).get(e.requestId)

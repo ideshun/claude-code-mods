@@ -232,6 +232,18 @@ test('repainting history does not reassign current reply timing', async ($, on) 
   await fresh.unmount()
 })
 
+test('falls back to render tracking when no append binding exists', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  const rendered = await $.ui.mount({ ...assistant('render-only'), surface: 'desktop' })
+  await rendered.unmount()
+  await $.turn.complete(complete(30000))
+  const done = await $.ui.mount({ ...assistant('render-only'), surface: 'desktop' })
+  expect(await timing(done)).toContain('Worked 30s')
+  await done.unmount()
+})
+
 test('binds timing to the rendered API message id when the row uuid differs', async ($, on) => {
   bottom(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
