@@ -14,6 +14,7 @@ type MainLoop = {
   activeTools: number
   toolsStartedAt: number
   lastMessageId?: string
+  lastMessageIds?: Set<string>
 }
 
 type Options = Parameters<Register>[1]
@@ -133,8 +134,12 @@ export const register: Register = (on, options) => {
     const content = result.message?.type === 'assistant' && Array.isArray(result.message.content)
       ? result.message.content
       : []
-    if (loop && content.some(block => block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')) {
-      loop.lastMessageId = result.uuid
+    const rowId = typeof result.uuid === 'string' ? result.uuid : undefined
+    if (loop && rowId && content.some(block => block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')) {
+      const messageId = (result.message as { id?: unknown }).id
+      const apiId = typeof messageId === 'string' ? messageId : undefined
+      loop.lastMessageId = apiId ?? rowId
+      loop.lastMessageIds = new Set([rowId, ...(apiId ? [apiId] : [])])
     }
     return result
   })
@@ -200,6 +205,10 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    if (current && e.props.text.trim() !== '' && current.lastMessageIds?.has(e.requestId)) {
+      current.lastMessageId = e.requestId
+    }
+
     const row = (await read($, byId)).get(e.requestId)
     if (!row) return next(e)
 

@@ -232,6 +232,44 @@ test('repainting history does not reassign current reply timing', async ($, on) 
   await fresh.unmount()
 })
 
+test('binds timing to the rendered API message id when the row uuid differs', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await $.session.append({
+    uuid: 'row-1', door: 'response', origin: { kind: 'model', model: 'test' },
+    message: {
+      id: 'msg-1', type: 'assistant', role: 'assistant',
+      content: [{ type: 'text', text: 'engine answer' }],
+    } as any,
+  })
+  const rendered = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
+  await rendered.unmount()
+  await $.turn.complete(complete(30000))
+  const done = await $.ui.mount({ ...assistant('msg-1'), surface: 'desktop' })
+  expect(await timing(done)).toContain('Worked 30s')
+  await done.unmount()
+})
+
+test('binds timing to the row uuid when the render uses it', async ($, on) => {
+  bottom(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await $.session.append({
+    uuid: 'row-2', door: 'response', origin: { kind: 'model', model: 'test' },
+    message: {
+      id: 'msg-2', type: 'assistant', role: 'assistant',
+      content: [{ type: 'text', text: 'engine answer' }],
+    } as any,
+  })
+  const rendered = await $.ui.mount({ ...assistant('row-2'), surface: 'desktop' })
+  await rendered.unmount()
+  await $.turn.complete(complete(30000))
+  const done = await $.ui.mount({ ...assistant('row-2'), surface: 'desktop' })
+  expect(await timing(done)).toContain('Worked 30s')
+  await done.unmount()
+})
+
 test('built-in language ignores saved custom labels', { options: {
   language: 'English', totalLabel: 'Total', thinkingLabel: 'Think', respondingLabel: 'Reply', toolsLabel: 'Tools',
 } }, async ($, on) => {
