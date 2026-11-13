@@ -35,6 +35,8 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | --- | --- | --- | --- |
 | `language` | `Auto`, `中文`, `English`, `日本語`, `Custom` | `English` | Language for the timing labels; `Auto` follows your system language, `Custom` uses the four label fields |
 | `showTokens` | boolean | `true` | Show total, input and output tokens plus the cache-hit rate after the timing |
+| `maxSessions` | Nonnegative integer; `0` = unlimited | `20` | Saved sessions, newest writes first |
+| `maxTurns` | Nonnegative integer; `0` = unlimited | `50` | Saved turns per session |
 | `prefix` | string | empty | Optional text/emoji before the timing line |
 | `totalLabel` | string | empty | Custom total-time label |
 | `thinkingLabel` | string | empty | Custom thinking-time label |
@@ -52,6 +54,8 @@ Example `~/.claude/settings.json`:
       "options": {
         "language": "English",
         "showTokens": true,
+        "maxSessions": 0,
+        "maxTurns": 0,
         "prefix": "⏱",
         "totalLabel": "Total",
         "thinkingLabel": "Think",
@@ -96,7 +100,8 @@ Tests cover one row per reply, independent values, history repaints, language pr
 
 ## Limitations
 
-- Only completed replies receive timing. The latest 50 completed turns are retained; `/clear` and session end discard them.
+- `maxSessions` (default 20) and `maxTurns` (default 50) accept nonnegative integers; `0` means unlimited. Invalid negative or fractional values fall back to defaults. Limits apply at session start and turn completion; raising them cannot recover pruned records.
+- Timing is saved per turn under `${CLAUDE_CONFIG_DIR:-~/.claude}/turn-timing/history`, avoiding the host’s 4 MiB key-value store limit. `/clear` erases the current session’s saved content; empty files can remain after cleanup. An oversized reply omits only its text-matching body, retaining timing and message IDs.
 - If IDs are unavailable and identical final texts are ambiguous, the plugin omits timing rather than guessing.
 - At most 256 render candidates are tracked for an active turn; use a stable host message ID if larger transcripts require more.
 - Thinking/responding/tool splits are client-side estimates; total is authoritative.

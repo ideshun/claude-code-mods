@@ -1,6 +1,6 @@
 {
   "name": "turn-timing",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Append configurable per-reply timing to the end of Claude Desktop replies",
   "license": "MIT",
   "author": {
@@ -62,6 +62,18 @@
       "title": "Tools label",
       "description": "Custom label for tool-call time. Used when Language is custom.",
       "default": ""
+    },
+    "maxSessions": {
+      "type": "string",
+      "title": "Saved sessions (0 = unlimited)",
+      "description": "Maximum number of sessions with saved timing. Use a nonnegative integer; 0 keeps all sessions. Applied when a session opens or a turn completes.",
+      "default": "20"
+    },
+    "maxTurns": {
+      "type": "string",
+      "title": "Saved turns per session (0 = unlimited)",
+      "description": "Maximum saved turns in each session. Use a nonnegative integer; 0 keeps all turns. Applied when a session opens or a turn completes.",
+      "default": "50"
     }
   }
 }

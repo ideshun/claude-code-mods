@@ -21,9 +21,27 @@ const assistant = (requestId: string) => ({
   props: { text: 'engine answer', isFirstOfReply: true },
 } as const)
 
-const bottom = (on: Parameters<TestBody>[1], locale = 'en_US.UTF-8') => {
+const disk = (on: Parameters<TestBody>[1]) => {
+  let time = 0
+  const files = new Map<string, { text: string, time: number }>()
+  on('fs.write', (_, e) => {
+    files.set(e.path, { text: e.text, time: ++time })
+    return { value: undefined }
+  })
+  on('fs.read', (_, e) => ({ value: files.get(e.path)?.text ?? '' }))
+  on('fs.exists', (_, e) => ({ value: files.has(e.path) || [...files.keys()].some(path => path.startsWith(e.path + '/')) }))
+  on('fs.list', (_, e) => ({ value: [...files].filter(([path]) => path.startsWith(e.path + '/')).map(([path, file]) => ({
+    name: path.slice(path.lastIndexOf('/') + 1), kind: 'file' as const,
+    size: file.text.length, mtimeMs: file.time, isLink: false,
+  })) }))
+}
+
+const bottom = (on: Parameters<TestBody>[1], locale = 'en_US.UTF-8', sessionId = () => 'test-session', stored: Readonly<Record<string, unknown>> = {}) => {
   mock.clock(on)
-  mock.env(on, { LANG: locale })
+  mock.store(on, stored)
+  disk(on)
+  on('session.id', () => ({ value: sessionId() }))
+  mock.env(on, { LANG: locale, HOME: '/test' })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -144,7 +162,10 @@ test('showTokens false hides the token line', { options: { showTokens: false } }
 
 test('timing estimates split a 90s reply', async ($, on) => {
   const clock = mock.clock(on)
-  mock.env(on, { LANG: 'en_US.UTF-8' })
+  mock.store(on)
+  disk(on)
+  on('session.id', () => ({ value: 'test-session' }))
+  mock.env(on, { LANG: 'en_US.UTF-8', HOME: '/test' })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -317,7 +338,10 @@ test('built-in language ignores saved custom labels', { options: {
 
 test('overlapping tool calls count wall-clock time once', async ($, on) => {
   const clock = mock.clock(on)
-  mock.env(on, { LANG: 'en_US.UTF-8' })
+  mock.store(on)
+  disk(on)
+  on('session.id', () => ({ value: 'test-session' }))
+  mock.env(on, { LANG: 'en_US.UTF-8', HOME: '/test' })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -367,7 +391,10 @@ test('final main message gets timing without rendering before completion', async
 
 test('partially overlapping and sequential tools count only occupied intervals', async ($, on) => {
   const clock = mock.clock(on)
-  mock.env(on, { LANG: 'en_US.UTF-8' })
+  mock.store(on)
+  disk(on)
+  on('session.id', () => ({ value: 'test-session' }))
+  mock.env(on, { LANG: 'en_US.UTF-8', HOME: '/test' })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -561,7 +588,10 @@ test('identical unbound answers never guess which late render owns a turn', asyn
 
 test('an interrupted turn includes tools that are still running', async ($, on) => {
   const clock = mock.clock(on)
-  mock.env(on, { LANG: 'en_US.UTF-8' })
+  mock.store(on)
+  disk(on)
+  on('session.id', () => ({ value: 'test-session' }))
+  mock.env(on, { LANG: 'en_US.UTF-8', HOME: '/test' })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -586,5 +616,136 @@ test('an interrupted turn includes tools that are still running', async ($, on) 
   await Promise.all([running, clock.set(10000)])
   const ui = await $.ui.mount({ ...assistant('interrupted-tool'), surface: 'desktop' })
   expect(await timing(ui)).toContain('Worked 5s · Thought 0s · Responded 0s · Tools 5s')
+  await ui.unmount()
+})
+
+
+test('restores persisted timing after a session exits and reopens', async ($, on) => {
+  bottom(on)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'persistent-reply')
+  await $.turn.complete(complete(30000))
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 'test-session', resume: { id: 'test-session' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...assistant('persistent-reply'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 30s')
+  await ui.unmount()
+})
+
+test('clear deletes persisted timing before reopening the same session', async ($, on) => {
+  bottom(on)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'cleared-reply')
+  await $.turn.complete(complete(30000))
+  await $.session.end({ reason: 'clear', sessionId: 'test-session', resume: { id: 'test-session' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...assistant('cleared-reply'), surface: 'desktop' })
+  expect(await timing(ui)).toBeUndefined()
+  await ui.unmount()
+})
+
+
+test('persisted timing is isolated by session id', async ($, on) => {
+  let sessionId = 'first-session'
+  bottom(on, 'en_US.UTF-8', () => sessionId)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.turn.start(turn)
+  await showAnswer($, 'isolated-persistent-reply')
+  await $.turn.complete(complete(30000))
+  await $.session.end({ reason: 'prompt_input_exit', sessionId, resume: { id: sessionId } })
+  sessionId = 'second-session'
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...assistant('isolated-persistent-reply'), surface: 'desktop' })
+  expect(await timing(ui)).toBeUndefined()
+  await ui.unmount()
+  sessionId = 'first-session'
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const restored = await $.ui.mount({ ...assistant('isolated-persistent-reply'), surface: 'desktop' })
+  expect(await timing(restored)).toContain('Worked 30s')
+  await restored.unmount()
+})
+
+test('custom turn limit applies to live rows and persisted history', { options: { maxTurns: '2' } }, async ($, on) => {
+  bottom(on)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (let index = 0; index < 3; index++) {
+    const turnId = `limited-turn-${index}`
+    await $.turn.start({ ...turn, turnId })
+    await showAnswer($, `limited-msg-${index}`)
+    await $.turn.complete(complete(30000, turnId))
+  }
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 'test-session', resume: { id: 'test-session' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const index of [0, 1, 2]) {
+    const ui = await $.ui.mount({ ...assistant(`limited-msg-${index}`), surface: 'desktop' })
+    if (index === 0) expect(await timing(ui)).toBeUndefined()
+    else expect(await timing(ui)).toContain('Worked 30s')
+    await ui.unmount()
+  }
+})
+
+test('zero turn limit restores more than 50 turns without the old size cap', { options: { maxTurns: '0' } }, async ($, on) => {
+  bottom(on)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (let index = 0; index < 55; index++) {
+    const turnId = `unlimited-turn-${index}`
+    await $.turn.start({ ...turn, turnId })
+    await $.session.append({
+      uuid: `unlimited-msg-${index}`, door: 'response', origin: { kind: 'model', model: 'test' },
+      message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(2000) }] },
+    })
+    await $.turn.complete(complete(30000, turnId))
+  }
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 'test-session', resume: { id: 'test-session' } })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const index of [0, 54]) {
+    const ui = await $.ui.mount({ ...assistant(`unlimited-msg-${index}`), surface: 'desktop' })
+    expect(await timing(ui)).toContain('Worked 30s')
+    await ui.unmount()
+  }
+})
+
+const sessionRetention = async ($: Parameters<TestBody>[0], on: Parameters<TestBody>[1], count: number, retained: boolean) => {
+  let sessionId = 'retained-0'
+  bottom(on, 'en_US.UTF-8', () => sessionId)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  for (let index = 0; index < count; index++) {
+    sessionId = `retained-${index}`
+    await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+    await $.turn.start(turn)
+    await showAnswer($, `session-msg-${index}`)
+    await $.turn.complete(complete(30000))
+    await $.session.end({ reason: 'prompt_input_exit', sessionId, resume: { id: sessionId } })
+  }
+  sessionId = 'retained-0'
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...assistant('session-msg-0'), surface: 'desktop' })
+  if (retained) expect(await timing(ui)).toContain('Worked 30s')
+  else expect(await timing(ui)).toBeUndefined()
+  await ui.unmount()
+}
+
+test('custom session limit prunes older sessions', { options: { maxSessions: '2' } }, async ($, on) => {
+  await sessionRetention($, on, 3, false)
+})
+
+test('zero session limit retains more than 20 sessions', { options: { maxSessions: '0' } }, async ($, on) => {
+  await sessionRetention($, on, 22, true)
+})
+
+test('migrates existing key-value history into file storage', async ($, on) => {
+  bottom(on, 'en_US.UTF-8', () => 'test-session', {
+    'history-v1:test-session': [{ id: 'legacy', answer: 'engine answer', messageIds: ['legacy-msg'], text: 'Worked 30s' }],
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...assistant('legacy-msg'), surface: 'desktop' })
+  expect(await timing(ui)).toContain('Worked 30s')
   await ui.unmount()
 })

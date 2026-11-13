@@ -12,7 +12,7 @@ claude_bin=${CLAUDE_BIN:-claude}
 
 # Optional: verify the code that is actually installed, without changing it.
 if [ "$#" -gt 0 ]; then
-  for file in .claude-plugin/plugin.json hooks/hooks.json hooks/register.tsx types/index.d.ts; do
+  for file in .claude-plugin/plugin.json hooks/hooks.json hooks/register.tsx hooks/history.ts types/index.d.ts; do
     diff -u "$plugin_dir/$file" "$1/$file"
     shasum -a 256 "$1/$file"
   done

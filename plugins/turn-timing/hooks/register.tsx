@@ -3,7 +3,7 @@ import type { Register, TurnCompleteInput } from 'claude-code'
 
 import type { Timing, TimingRow } from '../types'
 
-const HISTORY_LIMIT = 50
+import { clearHistory, limitOf, loadHistory, pruneHistory, retain, saveRow } from './history'
 const rows = atom({ plugin: 'turn-timing', key: 'rows' } as const, [], { shape: 'rows-10' })
 
 type MainLoop = {
@@ -110,9 +110,22 @@ export const register: Register = (on, options) => {
   let localePromise: Promise<string> | null = null
   let current: MainLoop | null = null
   let generation = 0
+  let storage = Promise.resolve()
+  const sessionLimit = limitOf(options.maxSessions, 20)
+  const turnLimit = limitOf(options.maxTurns, 50)
   const loops = new Map<string, MainLoop>()
   // Only the retained rows own bindings; rendering never writes engine state.
   const bindings = new Map<string, Map<string, string>>()
+
+  // Files survive process exit; state only drives live redraws.
+  on('session.start', async ($, e, next) => {
+    const result = await next(e)
+    await storage
+    const restored = await loadHistory($, await $.session.id(), sessionLimit, turnLimit)
+    bindings.clear()
+    await update($, rows, () => restored)
+    return result
+  })
 
   on('turn.start', (_, e, next) => {
     if (e.agentId === undefined) {
@@ -129,6 +142,10 @@ export const register: Register = (on, options) => {
     bindings.clear()
     localePromise = null
     await update($, rows, () => [])
+    if (e.reason === 'clear') {
+      storage = storage.then(() => clearHistory($, e.sessionId)).catch(() => { $.ui.log('Unable to clear saved timing history.') })
+      await storage
+    }
     return next(e)
   })
   .catch((_, e, next) => next(e))
@@ -239,7 +256,14 @@ export const register: Register = (on, options) => {
     }
     bindings.set(row.id, bound)
     if (generation !== sessionGeneration) return result
-    const saved = await update($, rows, previous => [...previous.filter(one => one.id !== row.id), row].slice(-HISTORY_LIMIT))
+    const saved = await update($, rows, previous => retain([...previous.filter(one => one.id !== row.id), row], turnLimit))
+    const sessionId = await $.session.id()
+    storage = storage.then(async () => {
+      if (generation !== sessionGeneration) return
+      await saveRow($, sessionId, row)
+      await pruneHistory($, sessionLimit, turnLimit)
+    }).catch(() => { $.ui.log('Unable to save timing history. Check the Claude configuration directory.') })
+    await storage
     const retained = new Set(saved.map(one => one.id))
     for (const id of bindings.keys()) if (!retained.has(id)) bindings.delete(id)
     return result

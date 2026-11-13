@@ -35,6 +35,8 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
 | --- | --- | --- | --- |
 | `language` | `Auto`、`中文`、`English`、`日本語`、`Custom` | `English` | 计时文字语言；`Auto` 跟随系统语言，`Custom` 使用四个自定义标签 |
 | `showTokens` | 布尔 | `true` | 在耗时后显示总 token、输入、输出和缓存命中率 |
+| `maxSessions` | 非负整数，`0` 不限制 | `20` | 保存会话数，优先保留最近写入的会话 |
+| `maxTurns` | 非负整数，`0` 不限制 | `50` | 每个会话保存的轮数 |
 | `prefix` | 字符串 | 空 | 耗时前可选的字符或 emoji |
 | `totalLabel` | 字符串 | 空 | 总耗时自定义标签 |
 | `thinkingLabel` | 字符串 | 空 | 思考耗时自定义标签 |
@@ -52,6 +54,8 @@ claude --plugin-dir /path/to/claude-code-mods/plugins/turn-timing
       "options": {
         "language": "中文",
         "showTokens": true,
+        "maxSessions": 0,
+        "maxTurns": 0,
         "prefix": "⏱"
       }
     }
@@ -94,7 +98,8 @@ claude plugin test plugins/turn-timing
 
 ## 限制
 
-- 仅保存最近 50 个已完成轮次；`/clear` 和会话结束会清除记录。
+- 通过 `maxSessions` 和 `maxTurns` 控制保存数量，默认 20 个会话、每会话 50 轮；两项都支持 `0`（不限数量），负数或非整数回退默认值。降低限制会在打开会话或完成回复时清理超额记录，增大限制无法恢复已清理的数据。
+- 数据保存在 `${CLAUDE_CONFIG_DIR:-~/.claude}/turn-timing/history`，每轮独立文件，避免宿主键值存储的 4 MiB 总量限制；`/clear` 清除当前会话的已保存内容。清理后可能保留空文件，已保存的统计内容会被清空。单条超大回复仅省略用于文本匹配的正文，保留统计和消息 ID。
 - ID 缺失且多条最终文本相同时，无法可靠区分的统计不显示，避免错误绑定。
 - 每个活动轮次最多追踪 256 个渲染候选；更大规模应优先使用宿主的稳定消息 ID。
 - 思考/回答/工具拆分是客户端估算；总耗时为权威值。
